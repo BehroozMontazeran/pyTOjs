@@ -1,0 +1,13 @@
+# Required modules to be installed by pip
+pip install visual.graph
+pip install urllib2
+pip install openai
+python -m pip show scikit-learn
+
+
+# Required modules to be installed by npm ## JavaScript side
+npm install -g express-generator
+npm install @tensorflow/tfjs
+npm install numjs
+npm install mathjs
+npm install readline-sync
