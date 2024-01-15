@@ -1,0 +1,13 @@
+# folder to be ignored
+/test
+.venv
+.env
+__pycache__/
+.vscode
+*.log
+*.pyc
+./__pycache__
+tags
+
+
+

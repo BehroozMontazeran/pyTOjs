@@ -48,7 +48,7 @@ class PyUnittestTranslator:
                         correction = self.connector.get_completions(MESSAGES['msg_translated_unittest_error'])
                         self.code_extractor.set_text(correction.choices[0].message.content)
                         # extract the corrected code
-                        js_code = self.code_extractor.extract_js_code()
+                        js_code = self.code_extractor.extract_code()
                         MESSAGES['msg_translated_unittest_error'][1]['content'] = raw_string
                         end_time = time.time()
                         self.log.info(f"Time taken to provide a translated js unit test code by GPT 3.5 in try: {loop_counter+1} Time elapsed: {end_time - start_time}")
@@ -85,7 +85,7 @@ class PyUnittestTranslator:
         self.code_extractor.set_text(completion.choices[0].message.content)
         end_time = time.time()
         self.log.info(f"First Prompt fo translation of Python unit test to JavaScript unit test completed! Time elapsed: {end_time - start_time}")
-        return self.code_extractor.extract_js_code()
+        return self.code_extractor.extract_code()
 
     def test_translated_code(self, path, js_code, js_test_code):
         """Test translated code and unit test to javascript on vscode

@@ -1,0 +1,31 @@
+*** Run phase one ***
+These steps are included in phase one:
+1- Prompt for a python unit test, test it on automatically on vscode
+2- Translate python code to JavaScript, test it on automatically on vscode
+3- Translte puthon unittest to javascript unittest, test it on automatically on vscode
+
+To run the whole phase one, first,
+Don't forget to set the folder name and the file name in the loop code. just replace the folder name and file name with those you want to test.
+
+then, run the following command:
+
+ python -m loop
+
+ make sure your current address of the terminal is the root directory of the project. the command should looks like following:
+
+ ...\23ws-AllTrans> python -m loop
+
+
+Subprocess will make some temporary files for each code that it wants to run. You can check the files under the root folder, if there is an error in the translated or generated code by GPT, you can check them in these temporary files to understand what would be the error.
+
+If you want to run the separate script from phase one,
+e.g. Only translate python code to JavaScript, first,
+uncommand the last four lines in that script, then run the following command:
+
+ ...\23ws-AllTrans> python -m translators.py_to_js_translator
+
+ By this way you can run other scripts seperately, as well.
+
+There are some types of response from GPT that needs to be handled further. make copy of any script and work on that copy! DO NOT CHANGE THE ORIGINAL SCRIPT!
+
+Different type of testing should be handled later as well!

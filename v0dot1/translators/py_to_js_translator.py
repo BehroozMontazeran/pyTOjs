@@ -54,7 +54,7 @@ class PyTranslator:
                         self.code_extractor.set_text(correction.choices[0].message.content)
                         MESSAGES['msg_ast_error'][1]['content'] = raw_string
                         # extract the corrected code
-                        js_code = self.code_extractor.extract_js_code()
+                        js_code = self.code_extractor.extract_code()
                         end_time = time.time()
                         self.log.info(f"Time taken to provide a translated javascript code by GPT 3.5 in try: {loop_counter+1} Time elapsed: {end_time - start_time}")
                     else:
@@ -79,7 +79,7 @@ class PyTranslator:
                 self.timing(self.start_overall_time)
                 return js_code
             else:
-                self.code_op.save(f'{path}/{self.code_finder.py_module_name(PATH)}.js', js_code, 'w')
+                self.code_op.save(f'{path}/{self.code_finder.module_name(PATH)}.js', js_code, 'w')
                 self.timing(self.start_overall_time)
                 return js_code
             
@@ -96,7 +96,7 @@ class PyTranslator:
         self.code_extractor.set_text(completion.choices[0].message.content)
         end_time = time.time()
         self.log.info(f"Translation of Python to JavaScript completed! Time elapsed: {end_time - start_time}")
-        return self.code_extractor.extract_js_code()
+        return self.code_extractor.extract_code()
 
 
     def translate_module_to_js(self, python_module):
@@ -108,7 +108,7 @@ class PyTranslator:
         self.code_extractor.set_text(completion.choices[0].message.content)
         end_time = time.time()
         self.log.info(f"Translation of Python to JavaScript completed! Time elapsed: {end_time - start_time}")
-        return self.code_extractor.extract_js_code()
+        return self.code_extractor.extract_code()
 
 
     def run_javascript_code(self, path, js_code):

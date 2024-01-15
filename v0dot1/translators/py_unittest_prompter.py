@@ -40,7 +40,7 @@ class PyUnittestPrompter:
             self.class_name = self.code_finder.py_class_name(signature, module_signature)
 
             # Extract module name
-            self.module_name = self.code_finder.py_module_name(PATH)
+            self.module_name = self.code_finder.module_name(PATH)
 
             # First prompt on unit test
             py_unittest = self.py_unittest_prompter(signature)
@@ -61,7 +61,7 @@ class PyUnittestPrompter:
                         correction = self.connector.get_completions(MESSAGES['msg_py_ast_error'])
                         self.code_extractor.set_text(correction.choices[0].message.content)
                         # extract the corrected code
-                        py_unittest = self.code_extractor.extract_python_code()
+                        py_unittest = self.code_extractor.extract_code()
                         MESSAGES['msg_py_ast_error'][1]['content'] = raw_string
                         end_time = time.time()
                         self.log.info(f"Time taken to provide a python unittest by GPT 3.5 in try: {loop_counter+1} Time elapsed: {end_time - start_time}")
@@ -100,7 +100,7 @@ class PyUnittestPrompter:
         end_time = time.time()
         MESSAGES['msg_py_unittest'][1]['content'] = raw_string
         self.log.info(f"First Prompt for the python unittest by GPT 3.5! Time elapsed: {end_time - start_time}")
-        return self.code_extractor.extract_python_code()
+        return self.code_extractor.extract_code()
 
     def run_python_unittest(self, path, unittest_code):
         """Run unittest on python code"""
