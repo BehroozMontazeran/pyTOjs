@@ -9,7 +9,7 @@ import re
 from core.log import Log
 from core.code_extractor import CodeExtractor
 from core.operator import CodeOperator, Finder
-from config import MAX_LOOP, START_LOOP, MESSAGES, PATH
+from config import MAX_LOOP, START_LOOP, MESSAGES
 
 class PyTranslator:
     """Prompt for translation of python code to javascript code"""
@@ -28,14 +28,14 @@ class PyTranslator:
         self.log.info(f"Overal time taken to run the code: {end_time - start_time}")
 
 
-    def py_translator_checker(self, path, signature, dependencies_signature = None, module_elements_signature = None, func_trans=False) -> None | str:
+    def py_translator_checker(self, path, signature, counterparts=None , dependencies_signature=None, module_elements_signature=None, func_trans=False) -> None | str:
         """read the python file, call translator on it, and save the corrected code """
         try:
             # First prompt on translator
             if func_trans:# if the signature is a function
-                js_code = self.translate_func_to_js(signature)
+                js_code = self.translate_function(signature, counterparts)
             else:# if the signature is the whole module
-                js_code = self.translate_module_to_js(signature, dependencies_signature, module_elements_signature)
+                js_code = self.translate_module(signature, dependencies_signature, module_elements_signature, counterparts)
 
             if js_code:
                 loop_counter = START_LOOP
@@ -64,69 +64,72 @@ class PyTranslator:
                     if loop_counter < MAX_LOOP:
                         loop_counter += 1
                     else:
-                        self.log.error("Unable to provide a correct js code by GPT 3.5!")
+                        self.log.error(f"Unable to provide a correct js code by GPT 3.5 after {MAX_LOOP} tries!")
                         return None
                         # break  # Exit the loop if no correct unit test found
 
             else:
-                self.log.error("Unable to provide a js code by GPT 3.5!")
+                self.log.error("Unable to provide a js code by GPT 3.5 at early stage!")
                 self.timing(self.start_overall_time)
                 return None
 
 
             # Save the corrected code
-            if func_trans :
+            if func_trans : #[TODO: change the function based on flag, not to create unsed folders]
                 self.code_op.save(f'{path}/functions_code.js', js_code + "\n\n", 'a')
                 self.timing(self.start_overall_time)
                 return js_code
             else:
-                self.code_op.save(f'{path}/{self.code_finder.module_name(PATH)}.js', js_code, 'w')
+                self.code_op.save(f'{path}/{self.code_finder.module_name(path)}.js', js_code, 'w')
                 self.timing(self.start_overall_time)
                 return js_code
             
         except Exception as e:
-            self.log.error(f"Unable to read: {signature}.  \n{e}")
+            self.log.error(f"Unable to feed signature into GPT 3.5: {signature}.  \n{e}")
 
 
-    def translate_func_to_js(self, python_code):
+    def translate_function(self, python_code, counterparts):
         """Translate Python ast of a function to JavaScript"""
         self.log.info("***Translating Python code to JavaScript!")
         start_time = time.time()
 
-        raw_string = MESSAGES['msg_ast_fn'][1]['content']
-        data = {'function_code': python_code}
-        MESSAGES['msg_ast_fn'][1]['content'] = re.sub(r'\{(\w+)\}', lambda x: str(data.get(x.group(1))), MESSAGES['msg_ast_fn'][1]['content'])
-        completion = self.connector.get_completions(MESSAGES['msg_ast_fn'])
+        raw_string = MESSAGES['msg_ast_mth'][1]['content']
+        data = {'function_code': python_code, 'counterparts': counterparts}
+        MESSAGES['msg_ast_mth'][1]['content'] = re.sub(r'\{(\w+)\}', lambda x: str(data.get(x.group(1))), MESSAGES['msg_ast_mth'][1]['content'])
+        completion = self.connector.get_completions(MESSAGES['msg_ast_mth'])
         self.code_extractor.set_text(completion.choices[0].message.content)
-        MESSAGES['msg_ast_fn'][1]['content'] = raw_string
+        MESSAGES['msg_ast_mth'][1]['content'] = raw_string
 
-        # MESSAGES['msg_ast_fn'][1]['content'] = MESSAGES['msg_ast_fn'][1]['content'].format(str(python_code))
-        # completion = self.connector.get_completions(MESSAGES['msg_ast_fn'])
-        # self.code_extractor.set_text(completion.choices[0].message.content)
         end_time = time.time()
         self.log.info(f"Translation of Python to JavaScript completed! Time elapsed: {end_time - start_time}")
         return self.code_extractor.extract_code()
 
 
-    def translate_module_to_js(self, class_signature, dependencies_signature, module_elements_signature):
+    def translate_module(self, module_signature, dependencies_signature, module_elements_signature, counterparts):
         """Translate Python signature of whole module to JavaScript"""
         self.log.info("***Translating Python module to JavaScript!")
         start_time = time.time()
-        module = list(dependencies_signature) + module_elements_signature + class_signature
-        raw_string = MESSAGES['msg_ast_ml'][1]['content']
-        data = {'number_of_classes': len(class_signature), 'python_module': module}
-        MESSAGES['msg_ast_ml'][1]['content'] = re.sub(r'\{(\w+)\}', lambda x: str(data.get(x.group(1))), MESSAGES['msg_ast_ml'][1]['content'])
-        completion = self.connector.get_completions(MESSAGES['msg_ast_ml'])
-        self.code_extractor.set_text(completion.choices[0].message.content)
-        MESSAGES['msg_ast_ml'][1]['content'] = raw_string
+        if dependencies_signature and module_elements_signature and module_signature:
+            module = list(dependencies_signature) + module_elements_signature + module_signature
+            data = {'number_of_classes': len(module_signature), 'python_module': module, 'counterparts': counterparts}
+            raw_string = MESSAGES['msg_ast_ml'][1]['content']
+            MESSAGES['msg_ast_ml'][1]['content'] = re.sub(r'\{(\w+)\}', lambda x: str(data.get(x.group(1))), MESSAGES['msg_ast_ml'][1]['content'])
+            completion = self.connector.get_completions(MESSAGES['msg_ast_ml'])
+            self.code_extractor.set_text(completion.choices[0].message.content)
+            MESSAGES['msg_ast_ml'][1]['content'] = raw_string
+        else:
+            module = module_signature
+            data = {'python_module': module, 'counterparts': counterparts}
+            raw_string = MESSAGES['msg_ast_fn'][1]['content']
+            MESSAGES['msg_ast_fn'][1]['content'] = re.sub(r'\{(\w+)\}', lambda x: str(data.get(x.group(1))), MESSAGES['msg_ast_fn'][1]['content'])
+            completion = self.connector.get_completions(MESSAGES['msg_ast_fn'])
+            self.code_extractor.set_text(completion.choices[0].message.content)
+            MESSAGES['msg_ast_fn'][1]['content'] = raw_string
 
-        # MESSAGES['msg_ast_ml'][1]['content'] = MESSAGES['msg_ast_ml'][1]['content'].format(len(python_module), str(python_module))
-        # completion = self.connector.get_completions(MESSAGES['msg_ast_ml'])
-        # self.code_extractor.set_text(completion.choices[0].message.content)
         end_time = time.time()
         self.log.info(f"Translation of Python to JavaScript completed! Time elapsed: {end_time - start_time}")
         return self.code_extractor.extract_code()
-
+    
 
     def run_javascript_code(self, path, js_code):
         """Run JavaScript code using Node.js"""
@@ -137,7 +140,7 @@ class PyTranslator:
             file.write(js_code)
 
         # Run the JavaScript code using Node.js subprocess
-        process = subprocess.Popen(['node', f'{path}/temp_js_before_run.js'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        process = subprocess.Popen(['node', '--check' ,f'{path}/temp_js_before_run.js'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         output, error = process.communicate()
         end_time = time.time()
         self.log.info(f"Run JavaScript code by subprocess! Time elapsed: {end_time - start_time}")

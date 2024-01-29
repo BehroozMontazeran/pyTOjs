@@ -1,0 +1,11 @@
+*** Run Debug for the first phase or scripts in translators folder***
+Just go to run and debug section on the left pannel or press (Ctrl+Shift+D)
+
+From the drop down list choose the module that you want to debug and press F5
+
+Don't forget to set the breakpoints in respective code beforehand.
+
+There are four different module there for debugging.
+
+- First phase, by which the whole phase is executed.
+- other seperate scripts in the first phase.

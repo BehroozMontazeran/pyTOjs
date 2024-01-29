@@ -10,7 +10,7 @@ import re
 from core.log import Log
 from core.code_extractor import CodeExtractor
 from core.operator import CodeOperator, Finder
-from config import PATH, MAX_LOOP, START_LOOP, MESSAGES
+from config import MAX_LOOP, START_LOOP, MESSAGES
 
 
 class PyUnittestPrompter:
@@ -40,7 +40,7 @@ class PyUnittestPrompter:
             self.class_name = self.code_finder.py_class_name(signature, module_signature)
 
             # Extract module name
-            self.module_name = self.code_finder.module_name(PATH)
+            self.module_name = self.code_finder.module_name(path)
 
             # First prompt on unit test
             py_unittest = self.py_unittest_prompter(signature)
