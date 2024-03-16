@@ -9,11 +9,19 @@ class Analyzer:
     def __init__(self):
         self.code = None
 
-    def analyze(self, file_path):
-        """Analyze the module based on LOC, token count, and other metrics."""
-        with open(file_path, 'r', encoding='utf-8') as file:
-            lines = file.readlines()
-        return len(lines)
+    def analyze(self, signatures):
+        """Analyze the module based on existance and number of classes and functions.
+        """
+        # if 
+        # return noncomplex==True 
+
+    # def analyze(self, file_path):
+    #     """Analyze the module based on LOC, token count, and other metrics."""
+    #     with open(file_path, 'r', encoding='utf-8') as file:
+    #         lines = file.readlines()
+    #     return len(lines)
+    
+
 
 
 

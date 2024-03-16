@@ -42,37 +42,84 @@ class Combiner:
         if isinstance(node, list):
             return ''.join(self.ast_to_code(child) for child in node)
         elif isinstance(node, esprima.nodes.FunctionDeclaration):
-            params = ', '.join(param.name for param in node.params)
+            params = ', '.join(param.name for param in node.params if param.name is not None)
             body = self.ast_to_code(node.body)
             return f'function {node.id.name}({params}) {body}'
         elif isinstance(node, esprima.nodes.BlockStatement):
             return f'{{{"; ".join(self.ast_to_code(statement) for statement in node.body)}}}'
         else:
-            return jsbeautifier.beautify(escodegen.generate(node))
+            # return jsbeautifier.beautify(escodegen.generate(node))
+                # Instead of just using jsbeautifier.beautify(escodegen.generate(node))
+            # Use it with options
+            opts = jsbeautifier.default_options()
+            opts.indent_size = 2  # Set indentation size to 2 spaces
+            opts.indent_char = ' '  # Use space for indentation (use '\t' for tabs)
+            opts.max_preserve_newlines = -1  # Unlimited newlines
+            opts.preserve_newlines = True
+            opts.keep_array_indentation = False
+            opts.break_chained_methods = True
+            opts.indent_scripts = 'normal'
+            opts.brace_style = 'collapse,preserve-inline'
+            opts.space_before_conditional = True
+            opts.unescape_strings = False
+            opts.jslint_happy = False
+            opts.end_with_newline = True
+            opts.wrap_line_length = 0  # Disable line wrapping
+            opts.indent_empty_lines = False
+            opts.comma_first = False
+
+            # Beautify the generated code with specified options
+            beautified_code = jsbeautifier.beautify(escodegen.generate(node), opts)
+            return beautified_code
 
     def replace_functions(self, node, functions_code):
         """Replace the functions in the AST with the code from the functions_code dict"""
-        for i, _ in enumerate(node.body):
-            for j, _ in enumerate(node.body[i].body.body):
-                # print("///////////"+ node.body[i].body.body[j].key.name)
-                if node.body[i].body.body[j].key.name in functions_code:  
-                    # Replace only the body of the function with the one from the functions code
-                    replacement_ast = functions_code[node.body[i].body.body[j].key.name]
-                    # print( replacement_ast.body)
-                    node.body[i].body.body[j].value.params = replacement_ast.params
-                    node.body[i].body.body[j].value.body = replacement_ast.body
-                    # Drop the function, not to be used for furthur classes.
-                    functions_code.pop(node.body[i].body.body[j].key.name)
-                    # print("************"+ functions_code.id.name +'//////'+functions_code.id.body)
-                # else:
-                    # print("///////////Not a function")
+
+        cl_fn_list = self.cl_fn_separator(functions_code)
+        try:
+            for i, _ in enumerate(node.body):
+                if node.body[i].type == 'ClassDeclaration':
+                    for j, _ in enumerate(node.body[i].body.body):
+                        # print("///////////"+ node.body[i].body.body[j].key.name)
+                        for _, (key, class_name, function_name) in enumerate(cl_fn_list):
+                            if (node.body[i].body.body[j].type == 'MethodDefinition' and
+                                node.body[i].body.body[j].key.name == function_name and
+                                node.body[i].body.body[j].key.name != 'constructor'):
+                            # if node.body[i].body.body[j].key.name == function_name: # [TODO]compare the name of class as well
+                                replacement_ast = functions_code[key]
+                                # Replace the body and params of the function with the one from the functions code
+                                # replacement_ast = functions_code[node.body[i].body.body[j].key.name]
+                                # print( replacement_ast.body)
+                                node.body[i].body.body[j].value.params = replacement_ast.params
+                                node.body[i].body.body[j].value.body = replacement_ast.body
+                                # Drop the function, not to be used for furthur classes.
+                                functions_code.pop(key)
+                                # functions_code.pop(node.body[i].body.body[j].key.name)
+                                # print("************"+ functions_code.id.name +'//////'+functions_code.id.body)
+                            # else:
+                                # print("///////////Not a function")
+                elif node.body[i].type == 'FunctionDeclaration':
+                    for _, (key, class_name, function_name) in enumerate(cl_fn_list):
+                        if (node.body[i].type == 'FunctionDeclaration' and
+                            node.body[i].id.name == function_name):
+                            # Replace the body and params of the function with the one from the functions code
+                            replacement_ast = functions_code[key]
+                            node.body[i].params = replacement_ast.params
+                            node.body[i].body = replacement_ast.body
+                            # Drop the function, not to be used for furthur usages.
+                            functions_code.pop(key)
+                            break
+                            # functions_code.pop(node.body[i].id.name)
+            
+            # # Recursively process statements within the body
+            # if hasattr(node, 'body') and isinstance(node.body, list):
+            #     for i, statement in enumerate(node.body):
+            #         node.body[i] = replace_functions(statement, functions_code)
         
-        # # Recursively process statements within the body
-        # if hasattr(node, 'body') and isinstance(node.body, list):
-        #     for i, statement in enumerate(node.body):
-        #         node.body[i] = replace_functions(statement, functions_code)
-        
-        return node
+            return node
+        except Exception as e:
+            self.log.error(f"Error in replacing_functions: {e}")
+            return None
     
     def ast_creator(self, base_code, elements):
         """Create an AST from the base code and the elements code"""
@@ -96,3 +143,18 @@ class Combiner:
         sorted_list = sorted(flat_list, key=lambda x: x.get('start_line', float('inf')))
         
         return sorted_list
+    
+    def cl_fn_separator(self, functions_code):
+        """Separate translated function names into classes and functions"""
+        cl_fn_list = []
+
+        for key in list(functions_code.keys()):  # Using list() to avoid RuntimeError during iteration
+            if key[0].isupper():
+                class_name, function_name = key.split('_', 1)
+                cl_fn_list.append((key, class_name, function_name))
+
+            else:
+                cl_fn_list.append((key, '_', key))
+
+
+        return cl_fn_list

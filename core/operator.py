@@ -1,10 +1,12 @@
 """Perform different actions on the code and project folder.
 """
 
+from math import e
 import os
 import shutil
 import re
 import json
+from tkinter import N
 
 from core.log import Log
 from config import ROOT, PY_UNITTEST, JS_METHODS, JS_UNITTEST, TRANSLATED_ROOT
@@ -30,7 +32,7 @@ class CodeOperator():
                     self.log.info(f"Successfully created and wrote the corrected {self._type_detector(file_path)} code to the respective path: {file_path}")
                 # Append to the json file
             elif action == 'j':
-                with open(file_path, 'a', encoding='utf-8') as json_file:
+                with open(file_path, 'w', encoding='utf-8') as json_file:
                     json.dump(code, json_file)
                     self.log.info(f"Successfully updated {self._type_detector(file_path)} in the respective path: {file_path}")
             else:
@@ -60,18 +62,53 @@ class CodeOperator():
             self.log.error(f"Unable to read the File: {file_path}")
             return None
 
+
     def update_json(self, json_file_path, input_dict):
-        """Update the JSON file with the input dictionary"""
+        """Update the JSON file with the input dictionary ensuring values are lists."""
         # Load the existing JSON data from the file
         existing_data = self.read(json_file_path, 'j')
+        if existing_data:
+            # Update the existing data with the input dictionary
+            for key, value in input_dict.items():
+                # Ensure value is a list
+                if not isinstance(value, list):
+                    value = [value]
 
-        # Check for missing keys in input_dict and add them to the existing_data
-        for key, value in input_dict.items():
-            if key not in existing_data:
-                existing_data[key] = value
+                if key in existing_data:
+                    # If the key already exists, append the new values to the existing list if they're not already included
+                    for item in value:
+                        if item not in existing_data[key]:
+                            existing_data[key].append(item)
+                else:
+                    # If the key doesn't exist, assign the new list as the value
+                    existing_data[key] = value
 
-        # Save the updated data back to the JSON file
-        self.save('counterparts.json', existing_data, 'j')
+            # Save the updated data back to the JSON file
+            self.save('counterparts.json', existing_data, 'j')
+        else:
+            self.log.error(f"Unable to update the JSON file: {json_file_path}")
+
+
+    
+    # def update_json(self, json_file_path, input_dict):
+    #     """Update the JSON file with the input dictionary"""
+    #     # Load the existing JSON data from the file
+    #     existing_data = self.read(json_file_path, 'j')
+
+    #     # Update the existing data with the input dictionary
+    #     for key, value in input_dict.items():
+    #         if key in existing_data:
+    #             # If the key already exists, append the new values to the existing list
+    #             if value in existing_data[key]:
+    #                 continue
+    #             else:
+    #                 existing_data[key].extend(value)
+    #         else:
+    #             # If the key doesn't exist, create a new list with the values
+    #             existing_data[key] = value
+
+    #     # Save the updated data back to the JSON file
+    #     self.save('counterparts.json', existing_data, 'j')
 
 
     def _type_detector(self, file_path):
@@ -96,8 +133,7 @@ class Finder(CodeOperator):
     def py_class_name(self, signature, module_signature):
         """ Find the class name of a python method in the module signature"""
         for _, class_name in enumerate(module_signature):
-            for _, method in enumerate(class_name['body']):
-                if signature['name'] in method:
+            if class_name['type'] == 'class' and str(class_name['name']) in signature['name']:
                     return class_name['name']
 
     def module_name(self, path):
@@ -114,6 +150,20 @@ class Finder(CodeOperator):
         # Get the base name of the file (including extension)
         file_name = os.path.basename(path)
         return file_name
+    
+    def path_separator(self,path: str, part: int=-2):
+        """ Separate deliberate parts of a path"""
+        # Normalize path to convert any \\ to /
+        normalized_path = os.path.normpath(path)
+
+        # Split the path into parts
+        parts = normalized_path.split(os.sep)
+        # and not the top-level directory in the path, you can do:
+        if len(parts) > 1:  # This checks if there are enough parts for a directory and a file
+            sub_folder = parts[part]
+        else:
+            sub_folder = None  # No sub-folder available
+        return sub_folder
     
     def dependencies_list(self, dependencies_signature):
         """ Find the list of dependencies in a signature"""
@@ -133,7 +183,7 @@ class Finder(CodeOperator):
         libraries = list(set(matches))  # Using set to remove duplicates
         return libraries
     
-    def counterparts_finder(self, libraries:list[dict])->dict|list:
+    def counterparts_finder(self, libraries, files):
         """ Find the counterparts of python dependencies_signatures in json file"""
         # Read the json file
         counterparts = self.read('counterparts.json', 'j')
@@ -144,10 +194,12 @@ class Finder(CodeOperator):
         libraries = [lib['name'] for lib in libraries]
         # Find the counterparts of libraries
         for library in libraries:
-            if library in counterparts:
+            if library in counterparts and counterparts :
                 counterparts_dict[library] = counterparts[library]
+            elif library in files:
+                counterparts_dict[library] = 'local'
             else:
-                counterparts_dict[library] = None
+                counterparts_dict[library] = [None]
                 nonavailables.append(library)
 
         return counterparts_dict, nonavailables
@@ -158,27 +210,51 @@ class ProjectOperator(Finder):
         self.log = Log(self.__class__.__name__)
         super().__init__()
 
-    def project_creator(self, path: str):
+    def project_creator(self, path: str, cmplx: bool = True):
         """Create a project folder and all the subfolders"""
         try:
-            project_path = f'project_{self.module_name(path)}'
-            # Create if the project folder doesn't exist
-            project_path = self.create_folder_if_not_exists(TRANSLATED_ROOT, project_path)
-            function_path = self.create_address(project_path,None,'functions_code.js')
-            js_path = self.create_address(project_path,None ,self.module_name(path) + '.js')
-            # Create source file in folder
-            if not self.is_file_in_folder(project_path, self.py_module_file(path)):
-                self.copy_file(path, project_path, self.py_module_file(path))
-                # Create all required subfiles or provide their addresses
-                self.create_file_if_not_exists(project_path, '__init__.py')
-                # function_path = self.create_address(project_path, 'functions_code.js')
-                # js_path = self.create_address(project_path, self.module_name(path) + '.js')
-                # Create all required subfolders
-                self.create_folder_if_not_exists(project_path, PY_UNITTEST)
-                self.create_folder_if_not_exists(project_path, JS_UNITTEST)
-                # self.create_folder_if_not_exists(project_path, JS_METHODS)
-                self.log.info(f"Successfully created the project folder: {project_path}")
-            return project_path, js_path, function_path
+            if cmplx:
+                modeule_name = self.module_name(path)
+                sub_root = self.path_separator(path)
+                # Create if the project folder doesn't exist
+                project_path = self.create_folder_if_not_exists(TRANSLATED_ROOT, sub_root, modeule_name)
+                if project_path is not None:
+                    function_path = self.create_address(project_path,None,'functions_code.js')
+                    js_path = self.create_address(project_path,None ,self.module_name(path) + '.js')
+                # Create source file in folder
+                if project_path is not None and not self.is_file_in_folder(project_path, self.py_module_file(path)):
+                    self.copy_file(path, project_path, self.py_module_file(path))
+                    # Create all required subfiles or provide their addresses
+                    self.create_file_if_not_exists(project_path, '__init__.py')
+                    # function_path = self.create_address(project_path, 'functions_code.js')
+                    # js_path = self.create_address(project_path, self.module_name(path) + '.js')
+                    # Create all required subfolders
+                    self.create_folder_if_not_exists(project_path, PY_UNITTEST)
+                    self.create_folder_if_not_exists(project_path, JS_UNITTEST)
+                    # self.create_folder_if_not_exists(project_path, JS_METHODS)
+                    self.log.info(f"Successfully created the project folder: {project_path}")
+                return project_path, js_path, function_path
+            else:
+                modeule_name = self.module_name(path)
+                sub_root = self.path_separator(path)
+                # Create if the project folder doesn't exist
+                project_path = self.create_folder_if_not_exists(TRANSLATED_ROOT, sub_root, modeule_name)
+                function_path = None
+                if project_path is not None:
+                    js_path = self.create_address(project_path,None ,self.module_name(path) + '.js')
+                # Create source file in folder
+                if project_path is not None and not self.is_file_in_folder(project_path, self.py_module_file(path)):
+                    self.copy_file(path, project_path, self.py_module_file(path))
+                    # Create all required subfiles or provide their addresses
+                    self.create_file_if_not_exists(project_path, '__init__.py')
+                    # function_path = self.create_address(project_path, 'functions_code.js')
+                    # js_path = self.create_address(project_path, self.module_name(path) + '.js')
+                    # Create all required subfolders
+                    self.create_folder_if_not_exists(project_path, PY_UNITTEST)
+                    self.create_folder_if_not_exists(project_path, JS_UNITTEST)
+                    # self.create_folder_if_not_exists(project_path, JS_METHODS)
+                    self.log.info(f"Successfully created the project folder: {project_path}")
+                return project_path, js_path, function_path
         except FileExistsError:
             self.log.error(f"Unable to create the project folder: {project_path}")
             return None
@@ -186,11 +262,11 @@ class ProjectOperator(Finder):
 
     def create_address(self, path: str, folder_name = None, file_name = None):
         """Create the address of the file"""
-        if folder_name is None:
+        if folder_name is None and file_name:
             file_path = os.path.join(path, file_name)
-        elif file_name is None:
+        elif file_name is None and folder_name:
             file_path = os.path.join(path, folder_name)
-        else:        
+        elif folder_name and file_name:
             file_path = os.path.join(path, folder_name, file_name)
         return file_path
 
@@ -229,9 +305,12 @@ class ProjectOperator(Finder):
             self.log.info(f"File '{file_name}' already exists in {folder_path}.")
             return file_path
 
-    def create_folder_if_not_exists(self, parent_folder: str, folder_name:str):
+    def create_folder_if_not_exists(self, parent_folder: str, sub_folder: str| None=None, folder_name:str="") -> str|None:
         """Create a folder if it doesn't exist"""
-        folder_path = os.path.join(parent_folder, folder_name)
+        if sub_folder is not None:
+            folder_path = os.path.join(parent_folder, sub_folder, folder_name)
+        else:
+            folder_path = os.path.join(parent_folder, folder_name)
         
         if not os.path.exists(folder_path):
             try:
@@ -246,7 +325,7 @@ class ProjectOperator(Finder):
             return folder_path
         
     def traverse_project(self, folder_path):
-        """Traverse the project folder and yield the file paths"""
+        """Traverse the project folder and yield the python file paths"""
         for root, dirs, files in os.walk(folder_path):
             for file in files:
                 if file.endswith(".py"):

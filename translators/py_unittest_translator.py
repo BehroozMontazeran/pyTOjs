@@ -26,9 +26,15 @@ class PyUnittestTranslator:
         end_time = time.time()
         self.log.info(f"Overal time taken to run the code: {end_time - start_time}")
 
-    def py_translator_checker(self, path, signature, py_unittest, js_code):
+    def py_translator_checker(self, path, py_signature, py_unittest, js_code, module=None) -> None | str:
         """read the unittest python file, call translator on it, run unittest on it and save the corrected code 
         """
+        # signature = self.code_op.read(py_signature['file_path'])
+        signature = py_signature
+        if not module:
+            function_name = 'module'
+        else:
+            function_name = signature["name"]
         try:
             # First prompt on unit test
             translated_js_unittest = self.translate_py_to_js(py_unittest)
@@ -43,7 +49,7 @@ class PyUnittestTranslator:
                         self.log.info(f"Found errors in the generated js code. Prompting for corrections. Number of tries: {loop_counter+1}")
                         # Provide the code and error to GPT to make corrections
                         raw_string = MESSAGES['msg_translated_unittest_error'][1]['content']
-                        data = {'js_code': str(py_unittest), 'error': str(error)}
+                        data = {'js_code': str(py_unittest), 'error': str(error), 'py_unittest': str(py_unittest)}
                         MESSAGES['msg_translated_unittest_error'][1]['content'] = re.sub(r'\{(\w+)\}', lambda x: str(data.get(x.group(1))), MESSAGES['msg_translated_unittest_error'][1]['content'])
                         correction = self.connector.get_completions(MESSAGES['msg_translated_unittest_error'])
                         self.code_extractor.set_text(correction.choices[0].message.content)
@@ -55,7 +61,7 @@ class PyUnittestTranslator:
 
                     else:
                         # Save the translated unittest code
-                        self.code_op.save(f'{path}/js_unittest/test_{signature["name"]}.js', translated_js_unittest, 'w')
+                        self.code_op.save(f'{path}/js_unittest/test_{function_name}.js', translated_js_unittest, 'w')
                         end_time = time.time()
                         self.log.info(f"Time taken to provide a python unittest by GPT 3.5 in try: {loop_counter+1} Time elapsed: {end_time - start_time}")
                         break  # Exit the loop if no errors in unit tests
@@ -127,7 +133,7 @@ class PyUnittestTranslator:
             # Run the command
             process = subprocess.run(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
-            # Check for errors in the output
+            # Check for errors in the output[TODO: this error checking is wrong]
             if 'Error' in process.stderr or 'Exception' in process.stderr:
                 end_time = time.time()
                 self.log.info(f"Run python unittest by subprocess! Time elapsed: {end_time - start_time}")

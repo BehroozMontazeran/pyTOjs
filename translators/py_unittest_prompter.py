@@ -24,6 +24,7 @@ class PyUnittestPrompter:
         self.start_overall_time = time.time()
         self.class_name = None
         self.module_name = None
+        self.function_name = None
 
     def timing(self, start_time):
         """Print the time taken to run the code"""
@@ -31,19 +32,40 @@ class PyUnittestPrompter:
         self.log.info(f"Overal time taken to run the code: {end_time - start_time}")
 
 
-    def py_unittest_checker(self, path, signature, module_signature) -> None | str:
+    def py_unittest_checker(self, path, fn_signature, module_signature=None, module=None, cmplx=True) -> None | str:
         """Call translator on signature of python file, run unittest for it and save the corrected code 
         """
+        # if module is None:
+        #     module_signature = signature['module_signature']
+        #     # signature = self.code_op.read(signature['file_path'])
+        #     self.function_name = None
+            
         try:
+            # First prompt on unit test[TODO: Must be changed for simple code]
+            if not cmplx:
+                module_signature = fn_signature['module_signature']
+                self.function_name = [item['name'] for (_, item) in enumerate(module_signature) if item['type'] == 'function'][0]
+                # # Find the corresponding class_name
+                # self.class_name = self.code_finder.py_class_name(signature, module_signature)
+                # Extract module name
+                self.module_name = self.code_finder.module_name(path)
+                fn_signature = self.code_op.read(fn_signature['file_path'])
+                py_unittest = self.py_unittest_prompter(fn_signature)
+            elif module:
 
-            # Find the corresponding class_name
-            self.class_name = self.code_finder.py_class_name(signature, module_signature)
+                # Find the corresponding class_name
+                self.class_name = self.code_finder.py_class_name(fn_signature, module_signature)
+                # Extract module name
+                self.module_name = self.code_finder.module_name(path)
+                self.function_name = fn_signature["name"]
+                py_unittest = self.py_unittest_prompter(fn_signature)
+                
 
-            # Extract module name
-            self.module_name = self.code_finder.module_name(path)
+            # # Find the corresponding class_name
+            # self.class_name = self.code_finder.py_class_name(signature, module_signature)
 
-            # First prompt on unit test
-            py_unittest = self.py_unittest_prompter(signature)
+            # # Extract module name
+            # self.module_name = self.code_finder.module_name(path)
 
             if py_unittest:
                 loop_counter = START_LOOP
@@ -56,7 +78,7 @@ class PyUnittestPrompter:
                         self.log.info(f"Found errors in the generated unit tests. Prompting for corrections. Number of tries: {loop_counter+1}")
                         # Provide the code and error to GPT to make corrections
                         raw_string = MESSAGES['msg_py_ast_error'][1]['content']
-                        data = {'py_code': str(py_unittest), 'error': str(error)}
+                        data = {'unittest': str(py_unittest), 'error': str(error), 'py_code': str(fn_signature)}
                         MESSAGES['msg_py_ast_error'][1]['content'] = re.sub(r'\{(\w+)\}', lambda x: str(data.get(x.group(1))), MESSAGES['msg_py_ast_error'][1]['content'])
                         correction = self.connector.get_completions(MESSAGES['msg_py_ast_error'])
                         self.code_extractor.set_text(correction.choices[0].message.content)
@@ -66,7 +88,7 @@ class PyUnittestPrompter:
                         end_time = time.time()
                         self.log.info(f"Time taken to provide a python unittest by GPT 3.5 in try: {loop_counter+1} Time elapsed: {end_time - start_time}")
                     else:
-                        self.code_op.save(f'{path}/py_unittest/test_{signature["name"]}.py', py_unittest, 'w')
+                        self.code_op.save(f'{path}/py_unittest/test_{self.function_name}.py', py_unittest, 'w')
                         end_time = time.time()
                         self.log.info(f"Time taken to provide a python unittest by GPT 3.5 in try: {loop_counter+1} Time elapsed: {end_time - start_time}")
                         break  # Exit the loop if no errors in unit tests
@@ -92,17 +114,26 @@ class PyUnittestPrompter:
         """Prompt unittest for python code"""
         self.log.info("***Prompting for the python unittest by GPT 3.5!")
         start_time = time.time()
-        raw_string = MESSAGES['msg_py_unittest'][1]['content']
-        data = {'function_name': signature["name"], 'class_name': self.class_name, 'module_name': self.module_name, 'ast': str(signature)}
-        MESSAGES['msg_py_unittest'][1]['content'] = re.sub(r'\{(\w+)\}', lambda x: str(data.get(x.group(1))), MESSAGES['msg_py_unittest'][1]['content'])
-        completion = self.connector.get_completions(MESSAGES['msg_py_unittest'])
-        self.code_extractor.set_text(completion.choices[0].message.content)
-        end_time = time.time()
-        MESSAGES['msg_py_unittest'][1]['content'] = raw_string
+        if self.class_name:
+            raw_string = MESSAGES['msg_fn_from_cl_unittest'][1]['content']
+            data = {'function_name': self.function_name, 'class_name': self.class_name, 'module_name': self.module_name, 'ast': str(signature)}
+            MESSAGES['msg_fn_from_cl_unittest'][1]['content'] = re.sub(r'\{(\w+)\}', lambda x: str(data.get(x.group(1))), MESSAGES['msg_fn_from_cl_unittest'][1]['content'])
+            completion = self.connector.get_completions(MESSAGES['msg_fn_from_cl_unittest'])
+            self.code_extractor.set_text(completion.choices[0].message.content)
+            end_time = time.time()
+            MESSAGES['msg_fn_from_cl_unittest'][1]['content'] = raw_string
+        else:
+            raw_string = MESSAGES['msg_py_unittest'][1]['content']
+            data = {'code': str(signature)}
+            MESSAGES['msg_py_unittest'][1]['content'] = re.sub(r'\{(\w+)\}', lambda x: str(data.get(x.group(1))), MESSAGES['msg_py_unittest'][1]['content'])
+            completion = self.connector.get_completions(MESSAGES['msg_py_unittest'])
+            self.code_extractor.set_text(completion.choices[0].message.content)
+            end_time = time.time()
+            MESSAGES['msg_py_unittest'][1]['content'] = raw_string
         self.log.info(f"First Prompt for the python unittest by GPT 3.5! Time elapsed: {end_time - start_time}")
         return self.code_extractor.extract_code()
 
-    def run_python_unittest(self, path, unittest_code):
+    def run_python_unittest(self, path, unittest_code):# [TODO: Must be checked if syntax error checking is enouph]
         """Run unittest on python code"""
         start_time = time.time()
         self.log.info("***Running python unittest by subprocess!")
