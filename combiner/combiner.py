@@ -1,7 +1,4 @@
-"""Combines the code of the splitted files into one file
-
-    Returns:
-        js code: save javascript code
+"""Combines the code of the splitted files from functions and target js module into the target js file. 
 """
 import esprima
 import escodegen
@@ -22,18 +19,15 @@ class Combiner:
         # parse the code into an AST
         base_ast, elements_ast = self.ast_creator(base_code, elements_code)
 
-        # print(functions_ast)
         # Create a dictionary of functions from the functions AST
         elements_dict = {node.id.name: node for node in elements_ast if isinstance(node, esprima.nodes.FunctionDeclaration)}
-        # print(functions_dict)
+
         # Replace functions in the AST
         self.replace_functions(base_ast, elements_dict)
 
         # Create the code from the AST
         modified_code = self.ast_to_code(base_ast.body)
-        # print(modified_code)
-        # with open('combined_code.js', 'w') as file:
-        #     file.write(modified_code)
+
         # Save the code
         self.code_saver.save(js_path, modified_code, 'w')
 
@@ -48,9 +42,7 @@ class Combiner:
         elif isinstance(node, esprima.nodes.BlockStatement):
             return f'{{{"; ".join(self.ast_to_code(statement) for statement in node.body)}}}'
         else:
-            # return jsbeautifier.beautify(escodegen.generate(node))
-                # Instead of just using jsbeautifier.beautify(escodegen.generate(node))
-            # Use it with options
+            # options for beautifying the code
             opts = jsbeautifier.default_options()
             opts.indent_size = 2  # Set indentation size to 2 spaces
             opts.indent_char = ' '  # Use space for indentation (use '\t' for tabs)
@@ -77,27 +69,21 @@ class Combiner:
 
         cl_fn_list = self.cl_fn_separator(functions_code)
         try:
+            # Replace methods of a class
             for i, _ in enumerate(node.body):
                 if node.body[i].type == 'ClassDeclaration':
                     for j, _ in enumerate(node.body[i].body.body):
-                        # print("///////////"+ node.body[i].body.body[j].key.name)
                         for _, (key, class_name, function_name) in enumerate(cl_fn_list):
                             if (node.body[i].body.body[j].type == 'MethodDefinition' and
                                 node.body[i].body.body[j].key.name == function_name and
                                 node.body[i].body.body[j].key.name != 'constructor'):
-                            # if node.body[i].body.body[j].key.name == function_name: # [TODO]compare the name of class as well
                                 replacement_ast = functions_code[key]
                                 # Replace the body and params of the function with the one from the functions code
-                                # replacement_ast = functions_code[node.body[i].body.body[j].key.name]
-                                # print( replacement_ast.body)
                                 node.body[i].body.body[j].value.params = replacement_ast.params
                                 node.body[i].body.body[j].value.body = replacement_ast.body
                                 # Drop the function, not to be used for furthur classes.
                                 functions_code.pop(key)
-                                # functions_code.pop(node.body[i].body.body[j].key.name)
-                                # print("************"+ functions_code.id.name +'//////'+functions_code.id.body)
-                            # else:
-                                # print("///////////Not a function")
+                # Replace the functions inside the class or without a class
                 elif node.body[i].type == 'FunctionDeclaration':
                     for _, (key, class_name, function_name) in enumerate(cl_fn_list):
                         if (node.body[i].type == 'FunctionDeclaration' and
@@ -109,13 +95,6 @@ class Combiner:
                             # Drop the function, not to be used for furthur usages.
                             functions_code.pop(key)
                             break
-                            # functions_code.pop(node.body[i].id.name)
-            
-            # # Recursively process statements within the body
-            # if hasattr(node, 'body') and isinstance(node.body, list):
-            #     for i, statement in enumerate(node.body):
-            #         node.body[i] = replace_functions(statement, functions_code)
-        
             return node
         except Exception as e:
             self.log.error(f"Error in replacing_functions: {e}")
@@ -145,7 +124,7 @@ class Combiner:
         return sorted_list
     
     def cl_fn_separator(self, functions_code):
-        """Separate translated function names into classes and functions"""
+        """Separate translated function names into classes and functions based on the naming convention from splitter"""
         cl_fn_list = []
 
         for key in list(functions_code.keys()):  # Using list() to avoid RuntimeError during iteration
@@ -155,6 +134,5 @@ class Combiner:
 
             else:
                 cl_fn_list.append((key, '_', key))
-
 
         return cl_fn_list

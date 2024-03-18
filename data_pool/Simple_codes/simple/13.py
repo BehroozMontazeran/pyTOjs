@@ -11,7 +11,7 @@ def maxFreq(s):
     j = 0
     for i in range(len(binary) - 1,  -  1,  -  1):
         if (binary[i] == '1'):
-            count = max(count,    j - prev)
+            count = max(count, j - prev)
             prev = j
         j += 1
     return count

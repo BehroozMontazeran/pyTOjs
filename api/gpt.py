@@ -18,5 +18,9 @@ class OpenAIConnector:
 
     def get_completions(self, messages):
         """Send a message to GPT 3.5"""
-        self.log.info("Sending messages to GPT 3.5")
-        return self.client.chat.completions.create(model="gpt-3.5-turbo", messages=messages)
+        try:
+        # self.log.info("Sending messages to GPT 3.5")
+            return self.client.chat.completions.create(model="gpt-3.5-turbo", messages=messages)
+        except Exception as e:
+            self.log.error(f"Error in get_completions: {e}")
+            return None

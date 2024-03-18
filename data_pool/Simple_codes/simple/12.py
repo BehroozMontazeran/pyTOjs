@@ -11,4 +11,4 @@ def countIndices(arr, n):
 if __name__ == '__main__':
     arr = [1,  2,  3,  4]
     n = len(arr)
-    print(countIndices(arr,  n))
+    print(countIndices(arr, n))

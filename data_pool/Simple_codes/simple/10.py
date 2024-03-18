@@ -18,7 +18,7 @@ def PowerArray(n, k):
             return 0
     for i in range(50):
         if (b[i]):
-            print(i,    end="    ,    ")
+            print(i,end=",")
 
 
 if __name__ == '__main__':

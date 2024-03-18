@@ -4,12 +4,13 @@
         Translated javascript codes
 """
 import subprocess
-import time
 import re
 from core.log import Log
 from core.code_extractor import CodeExtractor
 from core.operator import CodeOperator
-from config import MAX_LOOP, START_LOOP, MESSAGES
+from core.eval import EVAL
+from utils.utils import Utils
+from config import MAX_LOOP, START_LOOP, MESSAGES, EVAL_LIST
 
 
 class PyUnittestTranslator:
@@ -18,18 +19,15 @@ class PyUnittestTranslator:
         self.log = Log(self.__class__.__name__)
         self.code_extractor = CodeExtractor()
         self.code_op = CodeOperator()
+        self.eval = EVAL()
+        self.utils = Utils()
         self.connector = connector
-        self.start_overall_time = time.time()
-        
-    def timing(self, start_time):
-        """Print the time taken to run the code"""
-        end_time = time.time()
-        self.log.info(f"Overal time taken to run the code: {end_time - start_time}")
+        self.start_overall_time = self.utils.get_timestamp()
+
 
     def py_translator_checker(self, path, py_signature, py_unittest, js_code, module=None) -> None | str:
         """read the unittest python file, call translator on it, run unittest on it and save the corrected code 
         """
-        # signature = self.code_op.read(py_signature['file_path'])
         signature = py_signature
         if not module:
             function_name = 'module'
@@ -44,7 +42,7 @@ class PyUnittestTranslator:
                 while True:
                     # Check if there are errors in the generated unit tests
                     error = self.test_translated_code(path, js_code, translated_js_unittest)
-                    start_time = time.time()
+                    start_time = self.utils.get_timestamp()
                     if error:
                         self.log.info(f"Found errors in the generated js code. Prompting for corrections. Number of tries: {loop_counter+1}")
                         # Provide the code and error to GPT to make corrections
@@ -56,25 +54,23 @@ class PyUnittestTranslator:
                         # extract the corrected code
                         js_code = self.code_extractor.extract_code()
                         MESSAGES['msg_translated_unittest_error'][1]['content'] = raw_string
-                        end_time = time.time()
-                        self.log.info(f"Time taken to provide a translated js unit test code by GPT 3.5 in try: {loop_counter+1} Time elapsed: {end_time - start_time}")
+
+                        self.utils.timing(start_time, self.utils.get_timestamp(), f"JavaScript unittest by GPT in try: {loop_counter+1}", "info")
 
                     else:
                         # Save the translated unittest code
                         self.code_op.save(f'{path}/js_unittest/test_{function_name}.js', translated_js_unittest, 'w')
-                        end_time = time.time()
-                        self.log.info(f"Time taken to provide a python unittest by GPT 3.5 in try: {loop_counter+1} Time elapsed: {end_time - start_time}")
+                        self.utils.timing(start_time, self.utils.get_timestamp(), f"JavaScript unittest by GPT in try: {loop_counter+1}", "info")
                         break  # Exit the loop if no errors in unit tests
                     # Loop checker, break at maximimum number of loop
                     if loop_counter < MAX_LOOP:
                         loop_counter += 1
                     else:
-                        self.log.error("Unable to provide a correct js unittest by GPT 3.5!")
+                        self.utils.timing(self.start_overall_time, self.utils.get_timestamp(), f"Unable to provide a correct JavaScript unittest by GPT in try: {loop_counter+1}", "error")
                         break  # Exit the loop if no correct unit test found
 
             else:
-                self.log.error("Unable to provide a js code by GPT 3.5!")
-                self.timing(self.start_overall_time)
+                self.utils.timing(self.start_overall_time, self.utils.get_timestamp(), "Unable to provide a correct JavaScript unittest by GPT!", "error")
                 return None
             
         except FileNotFoundError:
@@ -84,9 +80,7 @@ class PyUnittestTranslator:
 
     def translate_py_to_js(self, python_code):
         """Translate python code to javascript one"""
-        self.log.info("***Prompting for translation of python unittest to js unittest by GPT 3.5!")
-        start_time = time.time()
-
+        start_time = self.utils.get_timestamp()
 
         raw_string = MESSAGES['msg_translate_unittest'][1]['content']
         data = {'function_code': python_code}
@@ -95,50 +89,20 @@ class PyUnittestTranslator:
         self.code_extractor.set_text(completion.choices[0].message.content)
         MESSAGES['msg_translate_unittest'][1]['content'] = raw_string
 
-
-        # MESSAGES['msg_translate_unittest'][1]['content'] = MESSAGES['msg_translate_unittest'][1]['content'].format(str(python_code))
-        # completion = self.connector.get_completions(MESSAGES['msg_translate_unittest'])
-        # self.code_extractor.set_text(completion.choices[0].message.content)
-        end_time = time.time()
-        self.log.info(f"First Prompt fo translation of Python unit test to JavaScript unit test completed! Time elapsed: {end_time - start_time}")
+        self.utils.timing(start_time, self.utils.get_timestamp(), "Translation of python unittest by GPT!", "info")
         return self.code_extractor.extract_code()
 
     def test_translated_code(self, path, js_code, js_test_code):
-        """Test translated code and unit test to javascript on vscode
-
-        Args:
-            js_code (.js): translated code
-            js_test_code (.js): translated unit test
-
-        Returns:
-            _type_: srting of error if any
+        """Test translated code and unit test to javascript on vscode terminal by subprocess
         """
-        start_time = time.time()
-        self.log.info("***Running JavaScript unittest and main JavaScript by subprocess!")
-        
-        # Write translated JS code to a temporary file
-        js_code_file = f'{path}/temp_js_before_run.js'
-        with open(js_code_file, 'w', encoding='utf-8') as file:
-            file.write(js_code)
+        start_time = self.utils.get_timestamp()
 
-        # Write translated JS unit test code to a temporary file
-        js_test_file = f'{path}/temp_unittest_js_before_run.js'
-        with open(js_test_file, 'w', encoding='utf-8') as file:
-            file.write(js_test_code)
-
-        # Command to run in VS Code terminal
-        command = f'code -r {js_code_file} {js_test_file}'
-
-        try:
-            # Run the command
-            process = subprocess.run(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-
-            # Check for errors in the output[TODO: this error checking is wrong]
-            if 'Error' in process.stderr or 'Exception' in process.stderr:
-                end_time = time.time()
-                self.log.info(f"Run python unittest by subprocess! Time elapsed: {end_time - start_time}")
-                return process.stderr.strip()
-            else:
-                return None  # No errors
-        except Exception as e:
-            return f"Error during code execution: {str(e)}"
+        self.code_op.save(f"{path}/temp_js.js", js_code, 'w')
+        self.code_op.save(f"{path}/temp_unittest.js", js_test_code, 'w')
+        # Run the unittest using subprocess
+        process = subprocess.Popen(['node', 'temp_unittest.js'], cwd=path, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        output, error = process.communicate()
+        self.eval.eval(EVAL_LIST, error, js_test_code, self.utils.get_formatted_time(self.utils.get_timestamp()))
+        self.utils.timing(start_time, self.utils.get_timestamp(), "Run JavaScript unittest by subprocess!", "info")
+        if 'Error' in error or 'Exception' in error:
+            return error
