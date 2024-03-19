@@ -1,4 +1,4 @@
-# pyTOjs
+# 23ws-AllTrans
 
 
 This repository is a toolkit to translate python to JavaScript codes using LLMs, especially GPT.
@@ -14,7 +14,7 @@ A repository will be traversed for `.py` files and a list of signatures for each
 #### complex codes
 * any other codes rather than simple ones are complex code, even codes with two functions and more or if a class exists  in the code.
 
-This method of splitting comes from many tests of different  types of codes and GPT limitations in translation of the codes. To find a trade-off between the accuracy and lowest number of prompts, it is needed to obey a separation logic to split the codes to [module_signature](#module_signature), [methods_signature](#methods_signature), [dependencies_signature](#dependencies_signature),[sorted_signature](sorted_signatures), [calls](calls) in [splitter](splitter).
+This method of splitting comes from many tests of different  types of codes and GPT limitations in translation of the codes. To find a trade-off between the accuracy and lowest number of prompts, it is needed to obey a separation logic to split the codes to [module_signature](#module_signature), [methods_signature](#methods_signature), [dependencies_signature](#dependencies_signature),[sorted_signature](#sorted_signatures), [calls](#calls) in [splitter](#splitter).
 
 #### module_signature
 * In this all the module level components will be collected. To reduce the size of message for prompting functions and methods are recorded without their bodies, except for `__init__ `constructors, which are needed to be feed into GPT with respective class to increase the accuracy.
@@ -34,30 +34,32 @@ This a reserved signature for further  developments, which will collect all the 
 ## Prompting
 This project will use zero-shot prompting.
 Using GPT 3.5 Turbo with its maximum number of tokens, which is needed to send the whole module_signature of a complex code at the first prompt and later at the time of error occurrence module_signature + translated code + error message to GPT for the sake of accuracy of the response. 
-Each prompt messages in [config.py](config.py) have been developed and improved based on respective use cases.
+Each prompt messages in [config.py](./config.py) have been developed and improved based on respective use cases.
 
 ## Combining
 [simple codes](#simple-codes) do not need any combinations, however, complex codes are combined based on separated functions and methods that are translated and tested separately from [module_signature](#module_signature).
-In [combiner](combiner), signatures of the translated components  in JavaScript are made, based on which the combination of a module with its isolated components are done.
+In [combiner](./combiner), signatures of the translated components  in JavaScript are made, based on which the combination of a module with its isolated components are done.
 
 ## Dependency Resolving
-This part is heavily dependent on [counterparts.json](counterparts.json), which will keep the record  of all corresponding python libraries and their counterparts in JavaScript.
-Those codes that are dependent on libraries or modules will be addressed in [counterparts_prompter.py](translators/counterparts_prompter.py). All local modules are listed in split phase in order not to be used in prompt messages for counterparts finding. Moreover, those libraries that are available in [counterparts.json](counterparts.json) will not be added to the prompt messages as well. After receiving the response from GPT to provide counterparts for the missing libraries of python in JavaScript, the suggestions will be install locally using [subprocess](https://docs.python.org/3/library/subprocess.html) to validate the suggestions, by which two targets are followed. First evaluation of suggested counterparts. Second installing necessary dependencies in JavaScript for further tests and usage. After successful tests of counterparts, they will be added to the [counterparts.json](counterparts.json) and in case of any failures, the prompt will be repeated with the list of missing counterparts and error.
+This part is heavily dependent on [counterparts.json](./counterparts.json), which will keep the record  of all corresponding python libraries and their counterparts in JavaScript.
+Those codes that are dependent on libraries or modules will be addressed in [counterparts_prompter.py](./translators/counterparts_prompter.py). All local modules are listed in split phase in order not to be used in prompt messages for counterparts finding. Moreover, those libraries that are available in [counterparts.json](./counterparts.json) will not be added to the prompt messages as well. After receiving the response from GPT to provide counterparts for the missing libraries of python in JavaScript, the suggestions will be install locally using [subprocess](https://docs.python.org/3/library/subprocess.html) to validate the suggestions, by which two targets are followed. First evaluation of suggested counterparts. Second installing necessary dependencies in JavaScript for further tests and usage. After successful tests of counterparts, they will be added to the [counterparts.json](./counterparts.json) and in case of any failures, the prompt will be repeated with the list of missing counterparts and error.
 
 ## Translations/Completions
 This part of the project will run in three phases. 
-#### [py_unittest_prompter](translators/py_unittest_prompter.py)
-Firstly, the function or method codes, will be feed separately into GPT to create unittest for each one. These unittests will be used later for inside evaluation of the project and additionally feed again into GPT to be translated to JavaScript to have unittests for translated JavaScript codes as well. The successful unittests run by subprocess are stored separately in the respective folder `py_unittests` under the name of each module. At the time of error the prompt will be repeated until success or reaching the maximum level of loop, which can be set in [config.py](config.py). In this case the prompt message would be concatenation of function_signature + translated function + error.
+#### [py_unittest_prompter](./translators/py_unittest_prompter.py)
+Firstly, the function or method codes, will be feed separately into GPT to create unittest for each one. These unittests will be used later for inside evaluation of the project and additionally feed again into GPT to be translated to JavaScript to have unittests for translated JavaScript codes as well. The successful unittests run by subprocess are stored separately in the respective folder `py_unittests` under the name of each module. At the time of error the prompt will be repeated until success or reaching the maximum level of loop, which can be set in [config.py](./config.py). In this case the prompt message would be concatenation of function_signature + translated function + error.
 
-#### [py_to_js_translator](translators/py_to_js_translator.py)
+#### [py_to_js_translator](./translators/py_to_js_translator.py)
 Then the functions, methods or modules will be prompted for translation.
 The same process will happen as [py_unittest_prompter](#py_unittest_prompter) but for translation. The big difference is translation of module_signature as a base file for combination phase that is saved under the same name of given module in `.js`. The successful translated functions and methods will be concatenated in `functions.js` under the same folder of respective module.
 
-#### [py_unittest_translator](translators/py_unittest_translator.py)
+#### [py_unittest_translator](./translators/py_unittest_translator.py)
 
 Lastly the translated functions and methods are prompted for translation. The successful translated ones will be saved in the respective folder `js_unittests` under the name of each module. 
 
-## [main.py](main.py)
+## [Inner Evaluation](./core/eval.py)
+In this section the results of evaulation of translated chunks using the output of subprocess will be printed and plotted at the end of translating the whole repository or given folder. This will categorize the errors happened after testing the response from GPT.
+## [main.py](./main.py)
 Each part of the main is as follows:
 
 * Split the given project into python signatures and its files
@@ -165,12 +167,12 @@ if module and py_unittest_translator:
 ## Run the project
 
 ### Dependencies
-* Run [requirements.txt](requirements.txt).
+* Run [requirements.txt](./requirements.txt).
 The project is written based on [PEP8](https://peps.python.org/pep-0008/)
 ### Run
-* Put your repository or folder of python modules in the [data_pool](data_pool) and set the respective address as the value of `RESOURCE` in [config.py](config.py).
+* Put your repository or folder of python modules in the [data_pool](./data_pool) and set the respective address as the value of `RESOURCE` in [config.py](./config.py).
 
-* Simply run the `python -m main` in the root direction of the project. Logs and the results of evaluation will be found in [logs](logs) folder and the final graph of the results will be popped up at end of translating the whole given repository or folder.
+* Simply run the `python -m main` in the root direction of the project. Logs and the results of evaluation will be found in [logs](./logs) folder and the final graph of the results will be popped up at end of translating the whole given repository or folder.
 
 ## Further improvments
 
