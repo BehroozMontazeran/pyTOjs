@@ -1,11 +1,13 @@
 """ This module is responsible for evaluating the results of subprocess throughout the program. """
 
 import matplotlib.pyplot as plt
+import json
+import os
 
 from tabulate import tabulate
 
 from core.log import Log
-from config import EVAL_LIST
+from config import EVAL_LIST, TEMP_JSON
 
 
 class EVAL():
@@ -31,12 +33,17 @@ class EVAL():
 
     def count_errors(self):
         """Count the errors based on type and print the results"""
-        for error in EVAL_LIST:
+        eval_list = []
+        if EVAL_LIST:
+            eval_list = EVAL_LIST
+        elif os.path.exists(TEMP_JSON):
+            with open(TEMP_JSON, 'r', encoding='utf-8') as file:
+                eval_list = json.load(file)
+        for error in eval_list:
             self.error_counts[error['error_type']] += 1
         
         total_prompts = EVAL.eval_calls
         
-
         total_errors = 0  # Total count of all errors
         for error_type, count in self.error_counts.items():
             self.error_data.append([error_type, count, f"{(count / total_prompts) * 100:.2f}%"])

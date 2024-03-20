@@ -106,3 +106,4 @@ class PyUnittestTranslator:
         self.utils.timing(start_time, self.utils.get_timestamp(), "Run JavaScript unittest by subprocess!", "info")
         if 'Error' in error or 'Exception' in error:
             return error
+        return ''

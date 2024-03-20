@@ -3,7 +3,7 @@ import api
 import translators
 
 
-from config import RESOURCE
+from config import RESOURCE,EVAL_LIST, TEMP_JSON
 from core.eval import EVAL
 from core.operator import CodeOperator, ProjectOperator, Finder
 from splitter.splitter import Splitter
@@ -62,7 +62,9 @@ def run(code_operator, finder, combiner, project_operator, py_signatures, files,
                         # Translate the generated unit test code to javascript
                         py_unittest_translator = translators.PyUnittestTranslator(connectors)
                         py_unittest_translator.py_translator_checker(project_path, fn_signature, py_unittest, translated_func, module=module)
-
+                    else:
+                        py_unittest_translator = None
+        code_operator.save(TEMP_JSON, EVAL_LIST, 'j')
         if module and py_unittest_translator:
             # read the code from the files
             base_code = code_operator.read(js_path)

@@ -21,11 +21,14 @@ class Utils():
 
     def timing(self, start_time, end_time, message, msg_type="info"):
         """Print the time taken to run the code with the message and type of message."""
+
+        elapsed_time = end_time - start_time
+        elapsed_time_formatted = "{:.4f}".format(elapsed_time)
         if msg_type == "info":
-            self.log.info(f"{message}.Time elapsed: {end_time - start_time}")
+            self.log.info(f"{message}.Time elapsed: {elapsed_time_formatted}")
         elif msg_type == "debug":
-            self.log.debug(f"{message}.Time elapsed: {end_time - start_time}")
+            self.log.debug(f"{message}.Time elapsed: {elapsed_time_formatted}")
         elif msg_type == "error":
-            self.log.error(f"{message}.Time elapsed: {end_time - start_time}")
+            self.log.error(f"{message}.Time elapsed: {elapsed_time_formatted}")
         elif msg_type == "warning":
-            self.log.warning(f"{message}.Time elapsed: {end_time - start_time}")
+            self.log.warning(f"{message}.Time elapsed: {elapsed_time_formatted}")

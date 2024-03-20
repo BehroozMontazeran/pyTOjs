@@ -17,6 +17,8 @@ class CodeOperator():
 
     def save(self, file_path: str, code: str, action='w'or'a'):
         """Write or append the code to the file"""
+        if code is None:
+            self.log.error(f"Unable to write the File: {file_path}, the provided code is None.")
         try:
             # Check if the file exists
             if action == 'a': 

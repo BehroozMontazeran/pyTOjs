@@ -128,7 +128,7 @@ class Combiner:
         cl_fn_list = []
 
         for key in list(functions_code.keys()):  # Using list() to avoid RuntimeError during iteration
-            if key[0].isupper():
+            if key[0].isupper() and '_' in key:
                 class_name, function_name = key.split('_', 1)
                 cl_fn_list.append((key, class_name, function_name))
 

@@ -39,7 +39,9 @@ class PyUnittestPrompter:
         try:
             # First prompt on unit test for single function or module without function
             if not cmplx:
-                self.function_name = [item['name'] for (_, item) in enumerate(signatures['module_signature']) if item['type'] == 'function'][0]
+                function_names = [item['name'] for (_, item) in enumerate(signatures.get('module_signature', [])) if item.get('type') == 'function']
+                if function_names:
+                    self.function_name = function_names[0]
                 self.module_name = self.code_finder.module_name(path)
                 fn_signature = self.code_op.read(fn_signature['file_path'])
                 py_unittest = self.py_unittest_prompter(fn_signature, signatures)
@@ -75,8 +77,9 @@ class PyUnittestPrompter:
 
                         self.utils.timing(start_time, self.utils.get_timestamp(), f"Python unittest by GPT in try: {loop_counter+1}", "info")
                     else:
-                        self.code_op.save(f'{path}/py_unittest/test_{self.function_name}.py', py_unittest, 'w')
-                        self.utils.timing(start_time, self.utils.get_timestamp(), f"Python unittest by GPT in try: {loop_counter+1}", "info")
+                        if py_unittest:
+                            self.code_op.save(f'{path}/py_unittest/test_{self.function_name}.py', py_unittest, 'w')
+                            self.utils.timing(start_time, self.utils.get_timestamp(), f"Python unittest by GPT in try: {loop_counter+1}", "info")
                         break  # Exit the loop if no errors in unit tests
                     # Loop checker, break at maximimum number of loop
                     if loop_counter < MAX_LOOP:
@@ -120,13 +123,16 @@ class PyUnittestPrompter:
     def run_python_unittest(self, path, unittest_code):
         """Run unittest on python code"""
         start_time = self.utils.get_timestamp()
-        self.code_op.save(f"{SOURCE_ROOT['source']}/temp_py_unittest.py", unittest_code, 'w')
+        if unittest_code:
+            self.code_op.save(f"{SOURCE_ROOT['source']}/temp_py_unittest.py", unittest_code, 'w')
 
-        # Run the unittest using subprocess
-        process = subprocess.Popen(['python', '-Xfrozen_modules=off', '-m', 'temp_py_unittest'], cwd=SOURCE_ROOT['source'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        output, error = process.communicate()
-        self.eval.eval(EVAL_LIST, error, unittest_code, self.utils.get_formatted_time(self.utils.get_timestamp()))
-        self.utils.timing(start_time, self.utils.get_timestamp(), "Run python unittest by subprocess!", "info")
+            # Run the unittest using subprocess
+            process = subprocess.Popen(['python', '-Xfrozen_modules=off', '-m', 'temp_py_unittest'], cwd=SOURCE_ROOT['source'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            output, error = process.communicate()
+            self.eval.eval(EVAL_LIST, error, unittest_code, self.utils.get_formatted_time(self.utils.get_timestamp()))
+            self.utils.timing(start_time, self.utils.get_timestamp(), "Run python unittest by subprocess!", "info")
 
-        return output, error
+            return output, error
+        else:
+            return '' , ''
 
